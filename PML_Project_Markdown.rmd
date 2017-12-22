@@ -1,0 +1,100 @@
+---
+title: "Practical Machine Learning Project"
+author: "Lisa Mudgett"
+date: "December 21, 2017"
+output: 
+  html_document:
+      keep_md: yes
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The goal of the project is to use fitness data to predict the manner in which someone did an exercise.
+
+This analysis used data from http://groupware.les.inf.puc-rio.br/har.  The data come from devices such as Jawbone Up, Nike FuelBand, and Fitbit, and for this project, we'll be looking at data collected from accelerometer on the belt, forearm, arm, and dumbell of six participants.
+
+The data were split into testing and training data for this assignment, and can be found here:
+
+Training: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+Test: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Analysis
+
+Let's load the data and packages we'll need for analysis.
+
+```{r}
+setwd('C:/Users/r624461/Desktop/Data Science/Practical Machine Learning')
+training <- read.csv('pml-training.csv')
+testing <- read.csv('pml-testing.csv')
+
+library(caret)
+library(randomForest)
+library(e1071)
+```
+
+Doing some exploration on the data shows there are columns with near zero variance, columns that are almost always NA, and some informational columns that we won't need for predicting.
+
+```{r}
+training <- training[, colSums(is.na(training)) ==0]
+testing <- testing[, colSums(is.na(testing)) ==0]
+
+nzv <- nearZeroVar(training)
+training <- training[, -nzv]
+testing <- testing[, -nzv]
+
+training <- training[, -(1:5)]
+testing <- testing[, -(1:5)]
+```
+
+For the out of sample error required in the assignment, I want to break the training set into another training and testing set.  Since this is a medium size data set, I'll use the 60/40 split.
+
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=.6, list=FALSE)
+newtrain <- training[inTrain,]
+newtest <- training[-inTrain,]
+```
+
+Now let's build some models! 
+
+```{r}
+set.seed(4309)
+```
+
+### Random Forest
+```{r}
+fit_rf <- randomForest(classe~., data=newtrain, prox=TRUE)
+predict_rf <- predict(fit_rf, newtest)
+confusionMatrix(newtest$class, predict_rf)
+```
+
+Hey, pretty good results!  Our accuracy is 99.48%, so the out of sample error is about half a percent.  
+
+### Boosting
+```{r}
+set.seed(11712)
+fit_gbm <- train(classe~., method="gbm", data=newtrain, verbose=FALSE)
+predict_gbm <- predict(fit_gbm, newtest)
+confusionMatrix(newtest$class, predict_gbm)
+```
+
+Boosting is pretty good too - 98.41% accuracy on the test set, so the out of sample error is about 1.5%.  The Random Forest was a better predictor.
+
+### Linear Discriminant Analysis
+```{r}
+set.seed(22115)
+fit_lda <- train(classe~., method="lda", data=newtrain)
+predict_lda <- predict(fit_lda, newtest)
+confusionMatrix(newtest$class, predict_lda)
+```
+
+Yikes, we're moving in the wrong direction! The accuracy of this prediction method is only 71.41%, so nearly 30% out of sample error.
+
+## Model Selection
+Based on the three prediction models I tested above, the Random Forest method was the best, with a 99.49% accuracy on my cross-validation test sample.  
+
